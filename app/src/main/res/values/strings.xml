@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">CameraXCapture_example</string>
+    <string name="permission_denied">Permission denied by user.</string>
+    <string name="shot">shot</string>
+    <string name="cancel">cancel</string>
+    <string name="save">save</string>
+    <string name="capture_preview">capturePreview</string>
+</resources>
