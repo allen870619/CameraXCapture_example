@@ -46,12 +46,6 @@ import java.util.Locale;
 import java.util.concurrent.ExecutionException;
 
 public class MainActivity extends AppCompatActivity implements View.OnClickListener {
-    /**
-     * reference
-     * <p>
-     * Freeze Preview : https://stackoverflow.com/questions/59661727/how-to-make-camerax-preview-freeze-when-take-a-photo
-     * BitmapRotation : https://stackoverflow.com/questions/56772967/converting-imageproxy-to-bitmap
-     */
     //CameraX
     ImageCapture imageCapture;
     ImageAnalysis imageAnalysis;
