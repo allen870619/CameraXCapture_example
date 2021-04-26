@@ -34,16 +34,19 @@ import androidx.camera.lifecycle.ProcessCameraProvider;
 import androidx.camera.view.PreviewView;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
-import androidx.lifecycle.LifecycleOwner;
 
 import com.google.common.util.concurrent.ListenableFuture;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.text.SimpleDateFormat;
 import java.util.Locale;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class MainActivity extends AppCompatActivity implements View.OnClickListener {
     //CameraX
@@ -69,6 +72,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     private final String ROOT_FOLDER_NAME = "/CameraTester";
     private final String FILE_PATH = Environment.getExternalStorageDirectory() + ROOT_FOLDER_NAME + "/temp";
     private int rotateDegree = 0;
+    public final ExecutorService service = Executors.newSingleThreadExecutor();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -193,7 +197,11 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                             rotateDegree = 90;
                         }
 
-                        imageCapture.setTargetRotation(rotation);
+                        /**
+                         * only save info in EXIF
+                         * If you also want to rotate width and height, use processPhoto() and disable this function
+                         */
+                        // imageCapture.setTargetRotation(rotation);
                     }
                 };
                 orientationEventListener.enable();
@@ -214,6 +222,9 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         imageCapture.takePicture(outputOptions, ContextCompat.getMainExecutor(this), new ImageCapture.OnImageSavedCallback() {
             @Override
             public void onImageSaved(@NonNull ImageCapture.OutputFileResults outputFileResults) {
+                service.submit(() -> {
+                    processPhoto();
+                });
                 Uri savedUri = Uri.fromFile(photoFile);
                 String msg = "Photo capture succeeded: " + savedUri.getPath();
                 Toast.makeText(getApplicationContext(), msg, Toast.LENGTH_SHORT).show();
@@ -233,9 +244,12 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 .build();
 
         imageAnalysis.setAnalyzer(ContextCompat.getMainExecutor(this), image -> {
+            //Two choice:
+            //1.Use imageAnalysis, but it will capture preview after shot(won't be same frame)
+            //2.Use open file method, preview will be same but takes time.
             ivPreviewPhoto.setImageBitmap(toBitmap(image));
         });
-        cameraProvider.bindToLifecycle((LifecycleOwner) this, cameraSelector, imageAnalysis, preview);
+        cameraProvider.bindToLifecycle(this, cameraSelector, imageAnalysis, preview);
     }
 
 
@@ -258,7 +272,6 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     }
 
     private boolean createFolder(String path) {
-        Log.d("???", "createFolder: " + path);
         File newDirectory = new File(path);
         if (!newDirectory.exists()) {
             return newDirectory.mkdir();
@@ -289,7 +302,24 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         Bitmap bitmapOrg = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.length);
         Matrix matrix = new Matrix();
         matrix.postRotate(rotateDegree);
-        Bitmap scaledBitmap = Bitmap.createScaledBitmap(bitmapOrg, width, height, true);
-        return Bitmap.createBitmap(scaledBitmap, 0, 0, scaledBitmap.getWidth(), scaledBitmap.getHeight(), matrix, true);
+        return Bitmap.createBitmap(bitmapOrg, 0, 0, bitmapOrg.getWidth(), bitmapOrg.getHeight(), matrix, true);
+    }
+
+    private void processPhoto() {
+        Bitmap fileBitmap = BitmapFactory.decodeFile(FILE_PATH);
+        Matrix matrix = new Matrix();
+        matrix.postRotate(rotateDegree);//it will conflict to 'setTargetRotation', choose one which you need
+        Bitmap resultBitmap = Bitmap.createBitmap(fileBitmap, 0, 0, fileBitmap.getWidth(), fileBitmap.getHeight(), matrix, true);
+
+        try {
+            File file = new File(FILE_PATH);
+            FileOutputStream outputStream = new FileOutputStream(file);
+            if (resultBitmap.compress(Bitmap.CompressFormat.JPEG, 100, outputStream)) {
+                outputStream.flush();
+                outputStream.close();
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 }
